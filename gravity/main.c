@@ -57,6 +57,8 @@ int main(void)
     	if (dragging){
     		b.pos.x = mousePos.x;
     		b.pos.y = mousePos.y;
+    		b.vel.x = 0;
+    		b.vel.y = 0;
     	}
 
     	if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
