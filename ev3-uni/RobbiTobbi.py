@@ -19,7 +19,7 @@ sound = Sound()
 
 def wenden():  # Wenden
     drive.on_for_rotations(SpeedPercent(50), SpeedPercent(50), 1) # Rückwärts
-    drive.on_for_rotations(SpeedPercent(-50), SpeedPercent(50), 1.6)  # 180° drehen
+    drive.on(SpeedPercent(-50), SpeedPercent(50))  # 180° drehen
 
 
 def ziel():  # Ziel- Melodie abspielen
