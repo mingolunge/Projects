@@ -1,43 +1,83 @@
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.common.keys import Keys
 from time import sleep
-import subprocess
+import json
+from subprocess import run, check_output
+from threading import Thread
 
-def wait_till(element):
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, element))
-    )
-
-def click(element):
-    element(By.XPATH, element).click()
-
-def search(term):
-    element(By.XPATH, searchbar).send_keys(Keys.CONTROL + "a" , Keys.BACKSPACE)
-    element(By.XPATH, searchbar).send_keys(term, "karaoke" + Keys.ENTER)
-
-options = Options()
-duration =  "//div[@class='ytp-left-controls']//span[@class='ytp-time-duration']"
-firefox_profile = FirefoxProfile()
-options.profile = "/home/milo/.mozilla/firefox/jsycqlvk.Karaoke/"
-
-driver = webdriver.Firefox( options=options)
-element = driver.find_element
-
-searchbar = "//input[@placeholder='Search']"
-first_vid = "//body/ytd-app/div[@id='content']/ytd-page-manager[@id='page-manager']/ytd-search[@role='main']/div[@id='container']/ytd-two-column-search-results-renderer[@class='style-scope ytd-search']/div[@id='primary']/ytd-section-list-renderer[@class='style-scope ytd-two-column-search-results-renderer']/div[@id='contents']/ytd-item-section-renderer[@class='style-scope ytd-section-list-renderer']/div[@id='contents']/ytd-video-renderer[1]/div[1]/ytd-thumbnail[1]/a[1]"
-driver,get("https://google.com")
-sleep(3)
-driver.get("https://youtube.com")
-wait_till(searchbar)
-search("fka twigs")
-time = wait_till(duration)
-print(time.text)
+####AIRTABLE
+from pyairtable import Api
+api = Api("patorOpFT38ETaQa1.5ee036c1f83cf7927d0e39869952c8f7996c3f17ca74df6903b7c86ece8194c5")
+table = api.table('appYFONV4aHzU78LI', 'tblm1ROCZS890Ddkw')
+table.all()
+##################
 
 
-#Spotify pausieren und anmachen accordinglyyyy
-subprocess.run(["playerctl",  "-p", "spotify", "play-pause"])
+duration: int
+
+def duration_to_seconds(duration_str):
+    """Convert 'ss', 'mm:ss', or 'hh:mm:ss' to total seconds."""
+    parts = [int(p) for p in duration_str.split(":")]
+
+    if len(parts) == 1:  # just seconds
+        return parts[0]
+    elif len(parts) == 2:  # mm:ss
+        minutes, seconds = parts
+        return minutes * 60 + seconds
+    elif len(parts) == 3:  # hh:mm:ss
+        hours, minutes, seconds = parts
+        return hours * 3600 + minutes * 60 + seconds
+    else:
+        raise ValueError(f"Invalid duration format: {duration_str}")
+        
+
+def parsecmd(cmd: str):
+    return cmd.split()
+
+def exec(cmd):
+    run(parsecmd(cmd))
+
+def closetab():
+    exec("hyprctl dispatch sendshortcut CTRL,W,")
+
+def play(query):
+    global duration
+    search = f"ytsearch1:{query} Karaoke"
+    
+    video_id = check_output([
+        "yt-dlp",
+        search,
+        "--get-id"
+    ], text=True).strip()
+    link =  f"https://www.youtube.com/watch?v={video_id}"
+    duration = check_output(parsecmd(f"yt-dlp --get-duration {link}"), text=True)
+    duration = duration_to_seconds(duration) - 10
+    closetab()
+    exec(f'firefox -p Karaoke --new-tab {link}')
+    sleep(10)
+    exec("hyprctl dispatch sendshortcut ,F,")
+
+Thread(target=exec, args=("firefox -p Karaoke",)).start()
+
+played = set()
+
+while True:
+    songs = table.all()
+    print("got table")
+    # songs_sorted = sorted(records, key=lambda r: r["createdTime"])
+
+    for record in songs:
+        fields = record["fields"]
+        title = fields.get("Song - Artist")
+
+        if not title or title in played:
+            continue
+
+        print(title)
+        try:
+            play(title)
+            sleep(duration)
+            played.add(title)
+        except:
+            pass
+
+    sleep(5)
+
