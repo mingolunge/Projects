@@ -5,7 +5,7 @@ from threading import Thread
 
 ####AIRTABLE
 from pyairtable import Api
-api = Api("patorOpFT38ETaQa1.5ee036c1f83cf7927d0e39869952c8f7996c3f17ca74df6903b7c86ece8194c5")
+api = Api("secret")
 table = api.table('appYFONV4aHzU78LI', 'tblm1ROCZS890Ddkw')
 table.all()
 ##################
