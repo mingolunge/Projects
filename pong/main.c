@@ -36,6 +36,13 @@ int main(void)
     		down = false;
     	}
 
+		if (IsKeyPressed(KEY_R)){
+			ball.pos.x = screenWidth/2;
+			ball.pos.y = screenHeight/2;
+			ball.d.x = -5;
+			ball.d.y = 5;
+		}
+
     	if (up){
     		player.y -= 6;
     	}
@@ -47,7 +54,7 @@ int main(void)
 		ball.pos.x = ball.pos.x + ball.d.x;
 		ball.pos.y = ball.pos.y + ball.d.y;
 
-		if (ball.pos.x + ball.r < player.x && ball.pos.y - player.y < 10) {
+		if (ball.pos.x + ball.r <= player.x + 10 && ball.pos.y + ball.r > player.y && ball.pos.y + ball.r < player.y + 60) {
 			ball.d.x = -ball.d.x;
 		}
 		if (ball.pos.y + ball.r < 0 || ball.pos.y > screenHeight) {
@@ -58,7 +65,7 @@ int main(void)
         BeginDrawing();
             ClearBackground(BLANK);
             DrawRectangle(player.x, player.y, 10, 60, WHITE);
-            DrawCircle(ball.pos.x, ball.pos.y, 10, WHITE);
+            DrawCircle(ball.pos.x, ball.pos.y, ball.r, WHITE);
         EndDrawing();
     }
 
