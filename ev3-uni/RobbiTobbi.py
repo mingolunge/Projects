@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-from ev3dev2.motor import OUTPUT_A, OUTPUT_B, SpeedPercent, MoveTank, LargeMotor
+from ev3dev2.motor import OUTPUT_A, OUTPUT_B, OUTPUT_C, SpeedPercent, MoveTank, LargeMotor
 from ev3dev2.sensor import INPUT_1, INPUT_2, INPUT_3, INPUT_4
 from ev3dev2.sensor.lego import LightSensor, UltrasonicSensor
 from ev3dev2.sound import Sound
-import math
 from time import sleep
+import math
 
+arm = LargeMotor(OUTPUT_C)              # arm
 drive = MoveTank(OUTPUT_A, OUTPUT_B)    # Motorsteuerung
-#arm = LargeMotor(OUTPUT_C)              # arm
-us = UltrasonicSensor(INPUT_2)    
+us = UltrasonicSensor(INPUT_2)
 ls1 = LightSensor(INPUT_1)              # linker Lichtsensor
 ls2 = LightSensor(INPUT_3)              # mittlerer Lichtsensor
 ls3 = LightSensor(INPUT_4)              # rechter Lichtsensor
@@ -17,18 +17,52 @@ last_action = ""                        # letzte Fahraktion
 active = True
 speed = 100
 wenden_speed = 60
-middle_val = (ls1.reflected_light_intensity + ls2.reflected_light_intensity) / 2  # Initialisierung von middle value weil wir davor 40 hatten
+middle_val = ((ls1.reflected_light_intensity + ls3.reflected_light_intensity) / 2 + ls2.reflected_light_intensity) / 2  # Initialisierung von middle value weil wir davor 40 hatten
+# noch in streifenerkennung machen, dass er sich richtung merkt
+
+
+def read_vals():
+    l = ls3.reflected_light_intensity
+    r = ls1.reflected_light_intensity / 1.2
+    m = ls2.reflected_light_intensity * 1.1
+    d = us.distance_centimeters - 4
+    return l, m, r, d
+
+
+def schranke(d=read_vals()[3]):
+    drive.off()  # anhalten
+    while d < 10:  # Wartet bis tor auf
+        sleep(.1)
+    return  # zurück in die main loop
+
+
+def schieben(d):
+    right_till_line()
+    while True:
+        interpret(compare(read_vals()))
+        if d < 5:
+            while d < 10:
+                d = read_vals()[3]
+                forward(10)
+            while not math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):
+                forward(-10)  # einfach rückwärts fahren bis streifen wieder erkannt wird
+                left_till_line()
+                return
 
 
 def wenden():  # Wenden
-    drive.on_for_rotations(SpeedPercent(50), SpeedPercent(50), 1) # Rückwärts
-    drive.on(SpeedPercent(-50), SpeedPercent(50))  # 180° drehen
+    drive.on_for_rotations(SpeedPercent(50), SpeedPercent(50), 1)  # Rückwärts
+    drive.on(SpeedPercent(50), SpeedPercent(-50))  # drehen
     sleep(2)
+    while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange www/sss: linie suchen
+        drive.on(SpeedPercent(50), SpeedPercent(-50))  # drehen
+    return
 
 
 def ziel():  # Ziel- Melodie abspielen
     global active
-    drive.off() # anhalten
+    drive.off()  # anhalten
+    arm.on_for_rotations(SpeedPercent(10), SpeedPercent(10), .25)
     # Hier noch einbauen dass er winkt und sich dreht
     # sound.play_file("sound.wav", volume=100)#, play_type=Sound.PLAY_NO_WAIT_FOR_COMPLETE)
     active = False  # Stoppt die  main while loop
@@ -46,6 +80,22 @@ def left():  # Linkskurve
     drive.on(SpeedPercent(0), SpeedPercent(-wenden_speed))
 
 
+def right_till_line():  # Rechtskurve
+    right()
+    sleep(1)
+    while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange rechts fahren bis linie erkannt
+        right()  # drehen
+    return
+
+
+def left_till_line():  # Linkskurve
+    left()
+    sleep(1)
+    while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange linbks fahren bis linie erkannt
+        left()  # links
+    return
+
+
 def compare(l, m, r, d, t=5):
     avg = (l + m + r) / 3
     if math.isclose(l, m, abs_tol=5) and math.isclose(m, r, abs_tol=5):
@@ -57,15 +107,14 @@ def compare(l, m, r, d, t=5):
             else:
                 pass
     if m < l - t and m < r - t:
+        if d < 5:
+            return "schranke"
         return "forward"
-
     if l < r - t:
         return "left"
-
     if r < l - t:
         return "right"
     return None
-
 
 
 def interpret(x: str):
@@ -82,10 +131,9 @@ def interpret(x: str):
     elif x == "ziel":
         drive.off()
         sleep(.5)
-        if d < 20:
-            ziel()
-        else:
-            forward()
+        ziel()
+    elif x == "schranke":
+        schranke()
     elif x == "wenden":
         wenden()
         last_action = "forward"
@@ -99,9 +147,4 @@ def interpret(x: str):
 
 
 while True:
-    r = ls1.reflected_light_intensity / 1.2
-    m = ls2.reflected_light_intensity * 1.1
-    l = ls3.reflected_light_intensity
-    d = us.distance_centimeters - 4
-    wert = compare(l, m, r, d)
-    interpret(wert)
+    interpret(compare(read_vals()))
