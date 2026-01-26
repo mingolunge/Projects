@@ -6,7 +6,7 @@ from ev3dev2.sound import Sound
 from time import sleep
 import math
 
-arm = LargeMotor(OUTPUT_C)              # arm
+# arm = LargeMotor(OUTPUT_C)              # arm
 drive = MoveTank(OUTPUT_A, OUTPUT_B)    # Motorsteuerung
 us = UltrasonicSensor(INPUT_2)
 ls1 = LightSensor(INPUT_1)              # linker Lichtsensor
@@ -15,8 +15,9 @@ ls3 = LightSensor(INPUT_4)              # rechter Lichtsensor
 sound = Sound()
 last_action = ""                        # letzte Fahraktion
 active = True
-speed = 100
-wenden_speed = 60
+speed = 30
+lenken_speed = 30
+wenden_speed = 30
 middle_val = ((ls1.reflected_light_intensity + ls3.reflected_light_intensity) / 2 + ls2.reflected_light_intensity) / 2  # Initialisierung von middle value weil wir davor 40 hatten
 # noch in streifenerkennung machen, dass er sich richtung merkt
 
@@ -36,33 +37,48 @@ def schranke(d=read_vals()[3]):
     return  # zurück in die main loop
 
 
-def schieben(d):
+def compare_simple(l, m, r, d, t=5):
+    avg = (l + m + r) / 3
+    if m < l - t and m < r - t:
+        return "forward"
+    if l < r - t:
+        return "left"
+    if r < l - t:
+        return "right"
+    return None
+
+
+def schieben(d=read_vals()[3]):
     right_till_line()
     while True:
-        interpret(compare(read_vals()))
+        interpret(compare_simple(*read_vals()))
+        d = read_vals()[3]
         if d < 5:
             while d < 10:
                 d = read_vals()[3]
                 forward(10)
-            while not math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):
-                forward(-10)  # einfach rückwärts fahren bis streifen wieder erkannt wird
-                left_till_line()
-                return
+            wenden()
+            vals = read_vals()
+            while not math.isclose(vals[2], vals[1], abs_tol=5) and not math.isclose(vals[1], vals[0], abs_tol=5):
+                forward(10)
+                vals = read_vals()
+            right_till_line()
 
 
 def wenden():  # Wenden
-    drive.on_for_rotations(SpeedPercent(50), SpeedPercent(50), 1)  # Rückwärts
-    drive.on(SpeedPercent(50), SpeedPercent(-50))  # drehen
+    drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(wenden_speed), 1)  # Rückwärts
+    drive.on(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed))  # drehen
     sleep(2)
     while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange www/sss: linie suchen
-        drive.on(SpeedPercent(50), SpeedPercent(-50))  # drehen
+        drive.on(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed))  # drehen
     return
 
 
 def ziel():  # Ziel- Melodie abspielen
     global active
     drive.off()  # anhalten
-    arm.on_for_rotations(SpeedPercent(10), SpeedPercent(10), .25)
+    # arm.on_for_rotations(SpeedPercent(10), SpeedPercent(10), .25)
+
     # Hier noch einbauen dass er winkt und sich dreht
     # sound.play_file("sound.wav", volume=100)#, play_type=Sound.PLAY_NO_WAIT_FOR_COMPLETE)
     active = False  # Stoppt die  main while loop
@@ -73,11 +89,11 @@ def forward(speed: int):  # beide Motoren vorwärts fahren
 
 
 def right():  # Rechtskurve
-    drive.on(SpeedPercent(-wenden_speed), SpeedPercent(0))
+    drive.on(SpeedPercent(-lenken_speed), SpeedPercent(0))
 
 
 def left():  # Linkskurve
-    drive.on(SpeedPercent(0), SpeedPercent(-wenden_speed))
+    drive.on(SpeedPercent(0), SpeedPercent(-lenken_speed))
 
 
 def right_till_line():  # Rechtskurve
@@ -109,6 +125,9 @@ def compare(l, m, r, d, t=5):
     if m < l - t and m < r - t:
         if d < 5:
             return "schranke"
+        
+
+        
         return "forward"
     if l < r - t:
         return "left"
@@ -147,4 +166,4 @@ def interpret(x: str):
 
 
 while True:
-    interpret(compare(read_vals()))
+    interpret(compare(*read_vals()))
