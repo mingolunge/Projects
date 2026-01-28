@@ -1,8 +1,4 @@
-saw_www = False
-barcode_active = False
-iteration_timer = 0
-streifen = 0
-max_iteration = 60
+
 if saw_www:
     streifen += 1
     saw_www = False
@@ -12,8 +8,9 @@ if saw_www:
         if iteration_timer > max_iteration: # barcode active false
             iteration_timer = 0
         elif streifen < 3:
-            return 
+            return "forward"
         elif streifen == 3:
+            return "schieben"
         
             
 else:

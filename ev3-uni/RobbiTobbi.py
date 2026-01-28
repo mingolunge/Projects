@@ -15,11 +15,17 @@ ls3 = LightSensor(INPUT_4)              # rechter Lichtsensor
 sound = Sound()
 last_action = ""                        # letzte Fahraktion
 active = True
-speed = 30
+speed = 80
 lenken_speed = 30
-wenden_speed = 30
+wenden_speed = 40
 middle_val = ((ls1.reflected_light_intensity + ls3.reflected_light_intensity) / 2 + ls2.reflected_light_intensity) / 2  # Initialisierung von middle value weil wir davor 40 hatten
 # noch in streifenerkennung machen, dass er sich richtung merkt
+saw_www = False
+iteration_timer = 0
+streifen = 0
+max_iteration = 60
+
+counter = 0
 
 
 def read_vals():
@@ -32,7 +38,8 @@ def read_vals():
 
 def schranke(d=read_vals()[3]):
     drive.off()  # anhalten
-    while d < 10:  # Wartet bis tor auf
+    while d < 15:  # Wartet bis tor auf
+        d=read_vals()[3]
         sleep(.1)
     return  # zurück in die main loop
 
@@ -67,11 +74,11 @@ def schieben(d=read_vals()[3]):
 
 def wenden():  # Wenden
     drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(wenden_speed), 1)  # Rückwärts
-    drive.on(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed))  # drehen
-    sleep(2)
-    while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange www/sss: linie suchen
-        drive.on(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed))  # drehen
-    return
+    drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed), 1.5)  # drehen
+    # sleep(.5)
+    # while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange www/sss: linie suchen
+    #     drive.on(SpeedPercent(wenden_spee d), SpeedPercent(-wenden_speed))  # drehen
+    # return
 
 
 def ziel():  # Ziel- Melodie abspielen
@@ -113,6 +120,9 @@ def left_till_line():  # Linkskurve
 
 
 def compare(l, m, r, d, t=5):
+    global streifen
+    global saw_www
+    global iteration_timer
     avg = (l + m + r) / 3
     if math.isclose(l, m, abs_tol=5) and math.isclose(m, r, abs_tol=5):
         if d < 20:
@@ -123,12 +133,25 @@ def compare(l, m, r, d, t=5):
             else:
                 pass
     if m < l - t and m < r - t:
-        if d < 5:
+        if d < 10:
             return "schranke"
-        
-
-        
+        if math.isclose(l, m, abs_tol=5) and math.isclose(m, r, abs_tol=5) and streifen < 3:
+            saw_www = True
+            if saw_www:
+                print(streifen, "streifen")
+                streifen += 1
+                saw_www = False
+                iteration_timer = 0
+                if streifen > 0:
+                    iteration_timer += 1
+                    if iteration_timer > max_iteration:  # barcode active false
+                        iteration_timer = 0
+                    elif streifen < 3:
+                        return "forward"
+                    elif streifen == 3:
+                        return "schieben"
         return "forward"
+
     if l < r - t:
         return "left"
     if r < l - t:
@@ -156,6 +179,8 @@ def interpret(x: str):
     elif x == "wenden":
         wenden()
         last_action = "forward"
+    elif x == "schieben":
+        schieben()
     else:
         if last_action == "right":
             right()
