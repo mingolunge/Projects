@@ -16,16 +16,15 @@ sound = Sound()
 last_action = ""                        # letzte Fahraktion
 active = True
 speed = 80
-lenken_speed = 30
-wenden_speed = 40
+lenken_speed = 50
+wenden_speed = 20
 middle_val = ((ls1.reflected_light_intensity + ls3.reflected_light_intensity) / 2 + ls2.reflected_light_intensity) / 2  # Initialisierung von middle value weil wir davor 40 hatten
 # noch in streifenerkennung machen, dass er sich richtung merkt
-saw_www = False
-iteration_timer = 0
+# Initialize
 streifen = 0
-max_iteration = 60
-
-counter = 0
+in_gap = False 
+last_gap_time = 0
+TIMEOUT_LIMIT = 1.5 # Adjust based on robot speed
 
 
 def read_vals():
@@ -74,7 +73,7 @@ def schieben(d=read_vals()[3]):
 
 def wenden():  # Wenden
     drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(wenden_speed), 1)  # Rückwärts
-    drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed), 1.5)  # drehen
+    drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed), 2)  # drehen
     # sleep(.5)
     # while math.isclose(read_vals()[2], read_vals()[1], abs_tol=5) and math.isclose(read_vals()[1], read_vals()[0], abs_tol=5):  # solange www/sss: linie suchen
     #     drive.on(SpeedPercent(wenden_spee d), SpeedPercent(-wenden_speed))  # drehen
@@ -119,44 +118,49 @@ def left_till_line():  # Linkskurve
     return
 
 
+from time import time
+
+
 def compare(l, m, r, d, t=5):
-    global streifen
-    global saw_www
-    global iteration_timer
+    global streifen, in_gap, last_gap_time
+
+    # --- 1. Obstacle Check (Highest Priority) ---
+    if d < 10:
+        return "schranke"
+    
     avg = (l + m + r) / 3
     if math.isclose(l, m, abs_tol=5) and math.isclose(m, r, abs_tol=5):
         if d < 20:
             if avg >= middle_val - t:
                 return "wenden"
-            if avg < middle_val:
+            else: # If it's dark and uniform
                 return "ziel"
-            else:
-                pass
-    if m < l - t and m < r - t:
-        if d < 10:
-            return "schranke"
-        if math.isclose(l, m, abs_tol=5) and math.isclose(m, r, abs_tol=5) and streifen < 3:
-            saw_www = True
-            if saw_www:
-                print(streifen, "streifen")
-                streifen += 1
-                saw_www = False
-                iteration_timer = 0
-                if streifen > 0:
-                    iteration_timer += 1
-                    if iteration_timer > max_iteration:  # barcode active false
-                        iteration_timer = 0
-                    elif streifen < 3:
-                        return "forward"
-                    elif streifen == 3:
-                        return "schieben"
-        return "forward"
+
+        # current_time = time()
+        # wsw = r > m and l > m
+
+        # if streifen > 0 and (current_time - last_gap_time) > TIMEOUT_LIMIT:
+        #     streifen = 0
+        #     print("resetting timer" , current_time - last_gap_time)
+
+        # if not wsw and d > 15:
+        #     streifen += 1
+        #     in_gap = True
+        #     last_gap_time = current_time
+        #     print("streifen: ", streifen, current_time - last_gap_time)
+        # else:
+        #     in_gap = False
+
+        # if streifen == 3:
+        #     streifen = 0 
+        #     return "schieben"
 
     if l < r - t:
         return "left"
     if r < l - t:
         return "right"
-    return None
+
+    return "forward"
 
 
 def interpret(x: str):
