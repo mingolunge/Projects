@@ -48,7 +48,7 @@ def schranke():
     """Stops motors and waits until an obstacle is cleared."""
     drive.off()
     d = us.distance_centimeters - 4
-    while d < 20:
+    while d < 15:
         d = us.distance_centimeters - 4
         sleep(.1)
     return
@@ -74,22 +74,21 @@ def schieben():
         d = us.distance_centimeters - 4
         if d < 5:
             while d < 10:
-                l, m, r = read_vals()
                 d = us.distance_centimeters - 4
-                interpret(compare_simple(l, m, r))
+                forward(10)
             wenden()
             while True:
                 l, m, r = read_vals()
                 if (abs(r - m) <= 5) or (abs(m - l) <= 5):
                     break
-                interpret(compare_simple(l, m, r))
+                forward(10)
             right_till_line()
 
 
 def wenden():
     """Performs a 180-degree turn sequence."""
     drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(wenden_speed), 1)
-    drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed), 2.3)
+    drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(-wenden_speed), 2)
 
 
 def ziel():
@@ -135,20 +134,12 @@ def left_till_line():
     return
 
 
-def compare(l, m, r, d, t=10):
+def compare(l, m, r, d, t=5):
     """Main decision engine for navigation and barcode detection."""
     global streifen, in_gap, gap_start_time, last_gap_finished_time
 
-    avg = (l + m + r) / 3
-    if abs(l - m) <= 10 and abs(m - r) <= 10:
-        if d < 10:
-            if avg >= middle_val - t:
-                return "wenden"
-            else:
-                return "ziel"
-                print("ziel")
-    # elif d < 15:
-    #     return "schranke"
+    if d < 10:
+        return "schranke"
 
     now = time.time()
     is_bright = (m > middle_val + GAP_THRESHOLD)
@@ -170,10 +161,17 @@ def compare(l, m, r, d, t=10):
         else:
             streifen = 0
 
-    if streifen >= 2:
+    if streifen >= 3:
         streifen = 0
         return "schieben"
 
+    avg = (l + m + r) / 3
+    if abs(l - m) <= 5 and abs(m - r) <= 5:
+        if d < 20:
+            if avg >= middle_val - t:
+                return "wenden"
+            else:
+                return "ziel"
 
     if l < r - t:
         return "left"
@@ -220,16 +218,7 @@ def interpret(x: str):
             forward(speed)
 
 
-# Main loop execution
-loop_count = 0
-last_d = 100
 while True:
-    # Read light sensors (Fast)
     l, m, r = read_vals()
-
-    # Read Ultrasonic sensor (Slow) only once every 10 cycles
-    # if loop_count % 6 == 0:
-    last_d = us.distance_centimeters - 4
-
-    interpret(compare(l, m, r, last_d))
-    loop_count += 1
+    print("L: ", l, "  M: ", m, "  R:", r)
+    sleep(.5)
