@@ -7,6 +7,7 @@ from time import sleep
 import time
 
 # Hardware initialization
+arm = LargeMotor(OUTPUT_C)
 drive = MoveTank(OUTPUT_A, OUTPUT_B)
 us = UltrasonicSensor(INPUT_2)
 ls1 = LightSensor(INPUT_4)
@@ -22,25 +23,15 @@ lenken_speed = 50
 wenden_speed = 50
 
 # Initial calibration
-middle_val = ((ls1.reflected_light_intensity + ls3.reflected_light_intensity) / 2 + ls2.reflected_light_intensity) / 2
-
-# Barcode state tracking
-streifen = 0
-in_gap = False
-gap_start_time = 0
-last_gap_finished_time = 0
-
-# Tuning Constants
-MAX_BARCODE_GAP_DURATION = 0.15
-BARCODE_TOTAL_TIMEOUT = 1.0
-GAP_THRESHOLD = 15
+middle_val = 30  # (ls1.reflected_light_intensity + ls3.reflected_light_intensity + ls2.reflected_light_intensity * 2) / 4
+gap_timeout = .2
 
 
 def read_vals():
     """Fetches current light levels with hardware scaling."""
-    l = ls3.reflected_light_intensity
-    r = ls1.reflected_light_intensity / 1.2
-    m = ls2.reflected_light_intensity * 1.1
+    l = int(ls3.reflected_light_intensity)
+    m = int(ls2.reflected_light_intensity)
+    r = int(ls1.reflected_light_intensity) - 10
     return l, m, r
 
 
@@ -135,45 +126,38 @@ def left_till_line():
     return
 
 
+was_on_black = True
 def compare(l, m, r, d, t=10):
-    """Main decision engine for navigation and barcode detection."""
-    global streifen, in_gap, gap_start_time, last_gap_finished_time
+    """M^ain decision engine for navigation and barcode detection."""
+    global streifen, was_on_black
 
     avg = (l + m + r) / 3
-    if abs(l - m) <= 10 and abs(m - r) <= 10:
-        if d < 10:
-            if avg >= middle_val - t:
+    if d < 15:
+        if abs(l - m) <= 5 and abs(m - r) <= 5:
+            avg = (l + m + r) / 3
+            if avg >= middle_val:
                 return "wenden"
             else:
                 return "ziel"
-                print("ziel")
-    # elif d < 15:
-    #     return "schranke"
+        else:
+            return "schranke"
 
     now = time.time()
-    is_bright = (m > middle_val + GAP_THRESHOLD)
+    on_white = m >= middle_val
 
-    if is_bright and not in_gap:
-        gap_start_time = now
-        in_gap = True
-    elif not is_bright and in_gap:
-        gap_duration = now - gap_start_time
-        in_gap = False
-
-        if gap_duration < MAX_BARCODE_GAP_DURATION:
-            if (now - last_gap_finished_time) > BARCODE_TOTAL_TIMEOUT:
-                streifen = 1
-            else:
-                streifen += 1
-                print("+1 streifen", streifen)
-            last_gap_finished_time = now
-        else:
-            streifen = 0
+    if on_white and was_on_black:
+        gap_time = now
+        streifen += 1
+        sound.beep()
+        was_on_black = False
+    elif (now - gap_time) > gap_timeout:
+        streifen = 0
+    else:
+        was_on_black = m < middle_val
 
     if streifen >= 2:
         streifen = 0
         return "schieben"
-
 
     if l < r - t:
         return "left"
@@ -204,10 +188,8 @@ def interpret(x: str):
     elif x == "wenden":
         wenden()
         last_action = "forward"
-    elif x == "barcode_action":
-        # Placeholder for what happens when 3 fast gaps are seen
-        drive.off()
-        sound.beep()
+    elif x == "schieben":
+        schieben()
         last_action = "forward"
     elif x == "schieben":
         schieben()
@@ -222,14 +204,8 @@ def interpret(x: str):
 
 # Main loop execution
 loop_count = 0
-last_d = 100
+last_d = 0
 while True:
-    # Read light sensors (Fast)
     l, m, r = read_vals()
-
-    # Read Ultrasonic sensor (Slow) only once every 10 cycles
-    # if loop_count % 6 == 0:
     last_d = us.distance_centimeters - 4
-
     interpret(compare(l, m, r, last_d))
-    loop_count += 1

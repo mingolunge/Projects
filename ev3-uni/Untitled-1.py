@@ -38,9 +38,9 @@ GAP_THRESHOLD = 15
 
 def read_vals():
     """Fetches current light levels with hardware scaling."""
-    l = ls3.reflected_light_intensity
-    r = ls1.reflected_light_intensity / 1.2
-    m = ls2.reflected_light_intensity * 1.1
+    l = int(ls3.reflected_light_intensity)
+    r = int(ls1.reflected_light_intensity)
+    m = int(ls2.reflected_light_intensity)
     return l, m, r
 
 
@@ -166,6 +166,7 @@ def compare(l, m, r, d, t=5):
         return "schieben"
 
     avg = (l + m + r) / 3
+    print(avg)
     if abs(l - m) <= 5 and abs(m - r) <= 5:
         if d < 20:
             if avg >= middle_val - t:
@@ -217,8 +218,11 @@ def interpret(x: str):
         elif last_action == "forward":
             forward(speed)
 
-
+print((ls1.reflected_light_intensity + ls3.reflected_light_intensity + ls2.reflected_light_intensity * 2) / 4)
 while True:
     l, m, r = read_vals()
+    avg = (l + m + r) / 3
+    print(avg)
     print("L: ", l, "  M: ", m, "  R:", r)
+    print("L: ", l, "  M: ", m, "  R:", r - 10)
     sleep(.5)
