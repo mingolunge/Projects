@@ -24,7 +24,6 @@ wenden_speed = 50
 
 # Initial calibration
 middle_val = 30  # (ls1.reflected_light_intensity + ls3.reflected_light_intensity + ls2.reflected_light_intensity * 2) / 4
-gap_timeout = .2
 
 
 def read_vals():
@@ -126,9 +125,11 @@ def left_till_line():
     return
 
 
+gap_timeout = .5
+GAP_THERSHOLD = 10
 was_on_black = True
 def compare(l, m, r, d, t=10):
-    """M^ain decision engine for navigation and barcode detection."""
+    """Main decision engine for navigation and barcode detection."""
     global streifen, was_on_black
 
     avg = (l + m + r) / 3
@@ -143,19 +144,20 @@ def compare(l, m, r, d, t=10):
             return "schranke"
 
     now = time.time()
-    on_white = m >= middle_val
+    on_white = m >= (middle_val + GAP_THERSHOLD)
 
     if on_white and was_on_black:
         gap_time = now
         streifen += 1
         sound.beep()
         was_on_black = False
-    elif (now - gap_time) > gap_timeout:
-        streifen = 0
-    else:
+    elif not on_white:
         was_on_black = m < middle_val
 
-    if streifen >= 2:
+    if (now - gap_time) > gap_timeout:
+        streifen = 0
+
+    if streifen >= 3:
         streifen = 0
         return "schieben"
 
