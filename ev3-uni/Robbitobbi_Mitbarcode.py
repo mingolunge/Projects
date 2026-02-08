@@ -4,6 +4,7 @@ from ev3dev2.sensor import INPUT_1, INPUT_2, INPUT_3, INPUT_4
 from ev3dev2.sensor.lego import LightSensor, UltrasonicSensor
 from ev3dev2.sound import Sound
 from time import sleep
+import time
 
 # Hardware initialization
 arm = LargeMotor(OUTPUT_C)
@@ -77,6 +78,7 @@ def schieben():
 def wenden():
     """Performs a 180-degree turn sequence."""
     l, m, r = read_vals()
+    # drive.on_for_rotations(SpeedPercent(wenden_speed), SpeedPercent(wenden_speed), .2)
     while True:
         l, m, r = read_vals()
         if (abs(r - m) <= 5 and abs(m - l) <= 5):
@@ -89,13 +91,12 @@ def wenden():
 def ziel():
     """Triggers end-of-run and halts loop."""
     global active
-    # d = us.distance_centimeters - 4
-    # while d >= 11:
-    #     d = us.distance_centimeters - 4
-    #     forward(40)
+    d = us.distance_centimeters - 4
+    while d >= 3:
+        d = us.distance_centimeters - 4
+        forward(40)
     drive.off()
     arm.on_for_rotations(SpeedPercent(10), .5)
-    sound.play_file("sound.wav")
     active = False
 
 
@@ -104,11 +105,11 @@ def forward(speed: int):
 
 
 def right():
-    drive.on(SpeedPercent(-lenken_speed), SpeedPercent(lenken_speed / 4))
+    drive.on(SpeedPercent(-lenken_speed), SpeedPercent(lenken_speed/4))
 
 
 def left():
-    drive.on(SpeedPercent(lenken_speed / 4), SpeedPercent(-lenken_speed))
+    drive.on(SpeedPercent(lenken_speed/4), SpeedPercent(-lenken_speed))
 
 
 def right_till_line():
@@ -135,18 +136,48 @@ def left_till_line():
     return
 
 
+gap_timeout = .5
+GAP_THERSHOLD = 10
+gap_time = time.time()
+was_on_black = True
+streifen = 0
+
+
 def compare(l, m, r, d, t=10):
     """Main decision engine for navigation and barcode detection."""
+    global streifen, was_on_black, gap_time
+
     avg = (l + m + r) / 3
-    if abs(l - m) <= 10 and abs(m - r) <= 10:
-        if d < 20:
-            avg = (l + m + r) / 3
-            if avg >= middle_val - 10:
-                return "wenden"
-            else:
-                return "ziel"
     if d < 15:
+        if abs(l - m) <= 10 and abs(m - r) <= 10:
+            if d < 20:
+                print("vals sind gleichj")
+                avg = (l + m + r) / 3
+                if avg >= middle_val - 10:
+                    return "wenden"
+                else:
+                    return "ziel"
+                    sound.beep()
         return "schranke"
+
+    # -- BARCODE --
+    now = time.time()
+    on_white = m >= (middle_val - GAP_THERSHOLD)
+    if on_white and was_on_black:
+        gap_time = now
+        streifen += 1
+        print(streifen)
+        sound.beep()
+        was_on_black = False
+    elif not on_white:
+        was_on_black = True
+    if (now - gap_time) > gap_timeout:
+        streifen = 0
+    if streifen >= 3:
+        streifen = 0
+        return "schieben"
+    # -- BARCODEENDE --
+
     if m < l - t and m < r - t:
         return "forward"
     if l < r - t:
@@ -178,6 +209,9 @@ def interpret(x: str):
     elif x == "wenden":
         wenden()
         last_action = "forward"
+    elif x == "schieben":
+        schieben()
+        last_action = "forward"
     else:
         if last_action == "right":
             right()
@@ -188,8 +222,13 @@ def interpret(x: str):
 
 
 # Main loop execution
+loop_count = 0
+last_d = 0
 while active:
     l, m, r = read_vals()
+    # if loop_count % 10 == 0:
+    #     loop_count = 0
     last_d = us.distance_centimeters - 2
     a = compare(l, m, r, last_d)
     interpret(a)
+    # loop_count += 1
